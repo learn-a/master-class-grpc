@@ -1,13 +1,18 @@
 package learn.masterclass.grpc.greeting.server;
 
+import com.proto.greet.GreetEveryOneRequest;
+import com.proto.greet.GreetEveryOneResponse;
 import com.proto.greet.GreetManyTimeResponse;
 import com.proto.greet.GreetManyTimesRequest;
 import com.proto.greet.GreetRequest;
 import com.proto.greet.GreetResponse;
+import com.proto.greet.GreetWithDeadlineRequest;
+import com.proto.greet.GreetWithDeadlineResponse;
 import com.proto.greet.Greeting;
 import com.proto.greet.GreetingServiceGrpc.GreetingServiceImplBase;
 import com.proto.greet.LongGreetRequest;
 import com.proto.greet.LongGreetResponse;
+import io.grpc.Context;
 import io.grpc.stub.StreamObserver;
 import java.util.stream.IntStream;
 
@@ -59,9 +64,11 @@ public class GreetServiceImpl extends GreetingServiceImplBase {
 
     StreamObserver<LongGreetRequest> requestStreamObserver = new StreamObserver<LongGreetRequest>() {
       private String result = "";
+
       @Override
       public void onNext(LongGreetRequest value) {
-        result += "Hello: " + value.getGreeting().getFirstName() + " \n";
+        System.out.println("in server impl long value on next");
+        result += "Hello: " + value.getGreeting().getFirstName() + "! ";
       }
 
       @Override
@@ -77,5 +84,55 @@ public class GreetServiceImpl extends GreetingServiceImplBase {
     };
 
     return requestStreamObserver;
+  }
+
+  @Override
+  public StreamObserver<GreetEveryOneRequest> greetEveryOne(
+      StreamObserver<GreetEveryOneResponse> responseObserver) {
+    StreamObserver<GreetEveryOneRequest> requestObserver = new StreamObserver<GreetEveryOneRequest>() {
+      @Override
+      public void onNext(GreetEveryOneRequest value) {
+        String result = "Hello " + value.getGreeting().getFirstName();
+        responseObserver.onNext(GreetEveryOneResponse.newBuilder().setResult(result).build());
+      }
+
+      @Override
+      public void onError(Throwable t) {
+
+      }
+
+      @Override
+      public void onCompleted() {
+        responseObserver.onCompleted();
+      }
+    };
+    return requestObserver;
+  }
+
+  @Override
+  public void greetWithDeadline(GreetWithDeadlineRequest request,
+      StreamObserver<GreetWithDeadlineResponse> responseObserver) {
+
+    final Context current = Context.current();
+    try {
+      for (int i = 0; i < 3; i++) {
+        if (!current.isCancelled()) {
+          System.out.printf("Sleeping for 100ms");
+          Thread.sleep(100);
+        } else {
+          return;
+        }
+      }
+      responseObserver.onNext(
+          GreetWithDeadlineResponse.newBuilder()
+              .setResult("Hello: " + request.getGreeting().getFirstName())
+              .build()
+      );
+      responseObserver.onCompleted();
+    } catch (InterruptedException e) {
+      responseObserver.onError(e);
+    }
+
+
   }
 }
